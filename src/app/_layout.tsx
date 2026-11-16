@@ -1,18 +1,61 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
+import { Stack } from 'expo-router';
+import { useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
 
-SplashScreen.preventAutoHideAsync();
+import { ProfileProvider } from '../context/ProfileContext';
+import { FavoritesProvider } from '../context/SavedEventsContext';
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
+import {
+  requestNotificationPermission,
+  sendWelcomeNotification,
+} from '../utils/notifications';
+
+export default function RootLayout() {
+  const appState = useRef<string | null | undefined>(
+    AppState.currentState
+  );
+
+  useEffect(() => {
+    async function setupNotifications() {
+      const permissionGranted =
+        await requestNotificationPermission();
+
+      if (permissionGranted) {
+        await sendWelcomeNotification();
+      }
+    }
+
+    setupNotifications().catch((error) => {
+      console.log('Notification setup error:', error);
+    });
+
+    const subscription = AppState.addEventListener(
+      'change',
+      (nextAppState) => {
+        if (
+          appState.current?.match(/inactive|background/) &&
+          nextAppState === 'active'
+        ) {
+          console.log(
+            'KlnThings is back in the foreground!'
+          );
+        }
+
+        appState.current = nextAppState;
+      }
+    );
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
-    </ThemeProvider>
+    <FavoritesProvider>
+      <ProfileProvider>
+        <Stack screenOptions={{ headerShown: false }} />
+      </ProfileProvider>
+    </FavoritesProvider>
   );
 }
